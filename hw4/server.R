@@ -9,14 +9,20 @@ calcon <- function(predictions,references,target){
 
 shinyServer(function(input, output) {
   
-  output$distPlot <- renderPlot({
+  output$target <- renderUI({
+    radioButtons("target", label = "choise male or female:", choices = list("male" = "male", "female" = "female"), 
+                 selected = 1)
+  })
+  
+  output$methods <- renderUI({
+    methods_list = list.files("./methods/")
+    checkboxGroupInput("methods", label = "choise methods:", choices = methods_list,selected = 1)
+  })
+  
+  output$plot <- renderPlot({
     
-    query_m <- input$rbTarget
-    files <- input$cbgMethod
-    
-    if(is.null(files)) {
-      return()
-    }
+    query_m = input$target
+    files <- input$methods
     
     # read files
     senResult <- c() 
@@ -24,7 +30,7 @@ shinyServer(function(input, output) {
     
     for(file in files)
     {
-      d<-read.table(file, header=T,sep=",")
+      d<-read.table(paste0("./methods/", file), header=T,sep=",")
       cal<-calcon(d$prediction,d$reference,query_m)
       calsen <- round((cal[4]/(cal[4]+cal[1])), digits = 2)
       calspe <- round((cal[2]/(cal[2]+cal[3])), digits = 2)
@@ -33,11 +39,38 @@ shinyServer(function(input, output) {
       speResult <- c(speResult, calspe)
     }
     
-    x <- senResult
-    y <- speResult
-    data <- data.frame(senResult,speResult)
-    qplot(x,y,data = data)
+    # get the plot graph
+    data = do.call(rbind.data.frame, Map('c', senResult, speResult))
+    ggplot(data, aes(x=speResult, y=senResult)) + geom_point()
     
   })
-})
+  output$table <- renderTable({
+    
+    query_m = input$target
+    files <- input$methods
+    
+    senResult <- c() 
+    speResult <- c()
+    methods <- c()
+    
+    for(file in files) {
+      d <- read.table(paste0("./methods/",file), header = T, sep = ",")
+      
+      method <- gsub(".csv", "", basename(file))
+      d<-read.table(paste0("./methods/", file), header=T,sep=",")
+      cal<-calcon(d$prediction,d$reference,query_m)
+      calsen <- round((cal[4]/(cal[4]+cal[1])), digits = 2)
+      calspe <- round((cal[2]/(cal[2]+cal[3])), digits = 2)
+      
+      senResult <- c(senResult, calsen) 
+      speResult <- c(speResult, calspe)
+      methods <- c(methods, method)
 
+    }
+    
+    data <- cbind(method=methods, calsen=senResult, calspe=speResult)
+    data
+    
+    
+  })     
+})
